@@ -76,17 +76,24 @@ func UpdateItemFields(itemID, notes string, fields []OnePasswordField) error {
 		args = append(args, fmt.Sprintf("notesPlain=%s", notes))
 	}
 
-	// Update fields
+	// Update fields using same syntax as create (with field types)
 	for _, field := range fields {
+		if field.ID == "notesPlain" {
+			continue // Already handled above
+		}
+
+		var fieldAssignment string
 		if field.Section != nil {
 			if sectionLabel, ok := field.Section["label"].(string); ok {
-				// Field with section: section.field=value
-				args = append(args, fmt.Sprintf("%s.%s=%s", sectionLabel, field.Label, field.Value))
+				// Field with section: section.field[type]=value  
+				fieldAssignment = fmt.Sprintf("%s.%s[%s]=%s", sectionLabel, field.Label, field.Type, field.Value)
 			}
 		} else {
-			// Field without section
-			args = append(args, fmt.Sprintf("%s=%s", field.Label, field.Value))
+			// Field without section: field[type]=value
+			fieldAssignment = fmt.Sprintf("%s[%s]=%s", field.Label, field.Type, field.Value)
 		}
+		
+		args = append(args, fieldAssignment)
 	}
 
 	cmd := exec.Command("op", args...)

@@ -231,3 +231,474 @@ func TestWriteItemToEnvFile(t *testing.T) {
 		t.Error("Generated .env should contain section header '# Redis Configuration'")
 	}
 }
+
+func TestCommentSpacingAndNewlines(t *testing.T) {
+	tests := []struct {
+		name        string
+		envContent  string
+		wantSpacing string
+		wantLines   int
+	}{
+		{
+			name: "single space in comments",
+			envContent: `# --------------------------------------------
+# This is a test comment
+# --------------------------------------------
+
+TEST_VAR=value`,
+			wantSpacing: "# This is a test comment",
+			wantLines:   1, // Should end with single newline
+		},
+		{
+			name: "multiple spaces in comments should be normalized",
+			envContent: `# --------------------------------------------
+#   This has extra spaces
+# --------------------------------------------
+
+TEST_VAR=value`,
+			wantSpacing: "# This has extra spaces",
+			wantLines:   1,
+		},
+		{
+			name: "flexible dash count",
+			envContent: `# ---
+# Short dashes
+# ---
+
+TEST_VAR=value`,
+			wantSpacing: "# Short dashes",
+			wantLines:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Parse .env to item
+			tmpDir := t.TempDir()
+			envFile := filepath.Join(tmpDir, ".env")
+			err := os.WriteFile(envFile, []byte(tt.envContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create test .env file: %v", err)
+			}
+
+			item, err := ParseEnvFileToItem(envFile, "test-item")
+			if err != nil {
+				t.Fatalf("ParseEnvFileToItem failed: %v", err)
+			}
+
+			// Write item back to .env
+			outputFile := filepath.Join(tmpDir, "output.env")
+			err = WriteItemToEnvFile(outputFile, item)
+			if err != nil {
+				t.Fatalf("WriteItemToEnvFile failed: %v", err)
+			}
+
+			// Read output content
+			content, err := os.ReadFile(outputFile)
+			if err != nil {
+				t.Fatalf("Failed to read output file: %v", err)
+			}
+
+			contentStr := string(content)
+
+			// Check comment spacing
+			if !strings.Contains(contentStr, tt.wantSpacing) {
+				t.Errorf("Expected comment spacing %q, but content was:\n%s", tt.wantSpacing, contentStr)
+			}
+
+			// Check line count (should end with single newline, not multiple)
+			lines := strings.Split(contentStr, "\n")
+			emptyLinesAtEnd := 0
+			for i := len(lines) - 1; i >= 0; i-- {
+				if strings.TrimSpace(lines[i]) == "" {
+					emptyLinesAtEnd++
+				} else {
+					break
+				}
+			}
+
+			if emptyLinesAtEnd != tt.wantLines {
+				t.Errorf("Expected %d empty lines at end, got %d. Content:\n%q", tt.wantLines, emptyLinesAtEnd, contentStr)
+			}
+		})
+	}
+}
+
+func TestSectionOrderPreservation(t *testing.T) {
+	tests := []struct {
+		name       string
+		envContent string
+		wantOrder  []string
+	}{
+		{
+			name: "original order: Email then Redis",
+			envContent: `DATABASE_URL=postgres://localhost:5432/test
+
+# Email Settings
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379`,
+			wantOrder: []string{"Email Settings", "Redis Configuration"},
+		},
+		{
+			name: "reversed order: Redis then Email",
+			envContent: `DATABASE_URL=postgres://localhost:5432/test
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Email Settings
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587`,
+			wantOrder: []string{"Redis Configuration", "Email Settings"},
+		},
+		{
+			name: "three sections in specific order",
+			envContent: `# Database
+DB_HOST=localhost
+
+# Cache
+CACHE_URL=redis://localhost
+
+# API
+API_KEY=secret`,
+			wantOrder: []string{"Database", "Cache", "API"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Parse .env to item
+			tmpDir := t.TempDir()
+			envFile := filepath.Join(tmpDir, ".env")
+			err := os.WriteFile(envFile, []byte(tt.envContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create test .env file: %v", err)
+			}
+
+			item, err := ParseEnvFileToItem(envFile, "test-item")
+			if err != nil {
+				t.Fatalf("ParseEnvFileToItem failed: %v", err)
+			}
+
+			// Write item back to .env
+			outputFile := filepath.Join(tmpDir, "output.env")
+			err = WriteItemToEnvFile(outputFile, item)
+			if err != nil {
+				t.Fatalf("WriteItemToEnvFile failed: %v", err)
+			}
+
+			// Read output content and verify section order
+			content, err := os.ReadFile(outputFile)
+			if err != nil {
+				t.Fatalf("Failed to read output file: %v", err)
+			}
+
+			contentStr := string(content)
+			lines := strings.Split(contentStr, "\n")
+
+			// Find section headers in order
+			var foundSections []string
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "#") && !strings.Contains(line, "---") {
+					sectionName := strings.TrimSpace(strings.TrimPrefix(line, "#"))
+					if sectionName != "" {
+						foundSections = append(foundSections, sectionName)
+					}
+				}
+			}
+
+			// Verify order matches expected
+			if len(foundSections) != len(tt.wantOrder) {
+				t.Errorf("Expected %d sections, found %d: %v", len(tt.wantOrder), len(foundSections), foundSections)
+				return
+			}
+
+			for i, expected := range tt.wantOrder {
+				if i >= len(foundSections) || foundSections[i] != expected {
+					t.Errorf("Section order mismatch at position %d: expected %q, got %q", i, expected, foundSections[i])
+				}
+			}
+		})
+	}
+}
+
+func TestRoundTripConsistency(t *testing.T) {
+	originalEnv := `# --------------------------------------------
+# My Application Environment
+# --------------------------------------------
+
+DATABASE_URL=postgres://localhost:5432/myapp
+API_KEY=secret123
+
+# Email Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_PASSWORD=email_secret
+
+# Redis Settings
+REDIS_HOST=localhost
+REDIS_PORT=6379`
+
+	tmpDir := t.TempDir()
+	
+	// Step 1: Write original .env file
+	originalFile := filepath.Join(tmpDir, "original.env")
+	err := os.WriteFile(originalFile, []byte(originalEnv), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create original .env file: %v", err)
+	}
+	
+	// Step 2: Parse to 1Password item
+	item, err := ParseEnvFileToItem(originalFile, "test-item")
+	if err != nil {
+		t.Fatalf("Failed to parse original .env: %v", err)
+	}
+	
+	// Step 3: Write back to .env file
+	roundTripFile := filepath.Join(tmpDir, "roundtrip.env")
+	err = WriteItemToEnvFile(roundTripFile, item)
+	if err != nil {
+		t.Fatalf("Failed to write round-trip .env: %v", err)
+	}
+	
+	// Step 4: Parse round-trip file again
+	item2, err := ParseEnvFileToItem(roundTripFile, "test-item")
+	if err != nil {
+		t.Fatalf("Failed to parse round-trip .env: %v", err)
+	}
+	
+	// Step 5: Compare field types and values
+	fieldMap1 := make(map[string]onepassword.OnePasswordField)
+	fieldMap2 := make(map[string]onepassword.OnePasswordField)
+	
+	for _, field := range item.Fields {
+		if field.ID != "notesPlain" {
+			fieldMap1[field.Label] = field
+		}
+	}
+	
+	for _, field := range item2.Fields {
+		if field.ID != "notesPlain" {
+			fieldMap2[field.Label] = field
+		}
+	}
+	
+	// Verify same fields exist
+	if len(fieldMap1) != len(fieldMap2) {
+		t.Errorf("Field count mismatch: original %d, round-trip %d", len(fieldMap1), len(fieldMap2))
+	}
+	
+	// Verify field types and values are preserved
+	for label, field1 := range fieldMap1 {
+		field2, exists := fieldMap2[label]
+		if !exists {
+			t.Errorf("Field %s missing in round-trip", label)
+			continue
+		}
+		
+		if field1.Type != field2.Type {
+			t.Errorf("Field %s type mismatch: original %s, round-trip %s", label, field1.Type, field2.Type)
+		}
+		
+		if field1.Value != field2.Value {
+			t.Errorf("Field %s value mismatch: original %s, round-trip %s", label, field1.Value, field2.Value)
+		}
+		
+		// Check section consistency
+		section1 := ""
+		section2 := ""
+		if field1.Section != nil {
+			if s, ok := field1.Section["label"].(string); ok {
+				section1 = s
+			}
+		}
+		if field2.Section != nil {
+			if s, ok := field2.Section["label"].(string); ok {
+				section2 = s
+			}
+		}
+		
+		if section1 != section2 {
+			t.Errorf("Field %s section mismatch: original %s, round-trip %s", label, section1, section2)
+		}
+	}
+}
+
+func TestFieldTypeConsistency(t *testing.T) {
+	envContent := `API_KEY=secret123
+PASSWORD=mypass
+JWT_TOKEN=jwt123
+DATABASE_URL=postgres://localhost
+REDIS_HOST=localhost
+DEBUG=true`
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	err := os.WriteFile(envFile, []byte(envContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test .env file: %v", err)
+	}
+
+	item, err := ParseEnvFileToItem(envFile, "test-item")
+	if err != nil {
+		t.Fatalf("ParseEnvFileToItem failed: %v", err)
+	}
+
+	expectedTypes := map[string]string{
+		"API_KEY":      "CONCEALED",
+		"PASSWORD":     "CONCEALED", 
+		"JWT_TOKEN":    "CONCEALED",
+		"DATABASE_URL": "STRING",
+		"REDIS_HOST":   "STRING",
+		"DEBUG":        "STRING",
+	}
+
+	for _, field := range item.Fields {
+		if field.ID == "notesPlain" {
+			continue
+		}
+		
+		expectedType, exists := expectedTypes[field.Label]
+		if !exists {
+			t.Errorf("Unexpected field: %s", field.Label)
+			continue
+		}
+		
+		if field.Type != expectedType {
+			t.Errorf("Field %s: expected type %s, got %s", field.Label, expectedType, field.Type)
+		}
+	}
+}
+
+func TestSectionReorderScenario(t *testing.T) {
+	// This test simulates the real-world scenario where user changes section order in .env
+	// and expects the change to be reflected in 1Password
+	
+	originalOrder := `DATABASE_URL=postgres://localhost:5432/test
+
+# Email Settings  
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379`
+
+	reorderedEnv := `DATABASE_URL=postgres://localhost:5432/test
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Email Settings
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587`
+
+	tmpDir := t.TempDir()
+	
+	// Step 1: Parse original order
+	originalFile := filepath.Join(tmpDir, "original.env")
+	err := os.WriteFile(originalFile, []byte(originalOrder), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create original .env file: %v", err)
+	}
+
+	originalItem, err := ParseEnvFileToItem(originalFile, "test-item")
+	if err != nil {
+		t.Fatalf("Failed to parse original .env: %v", err)
+	}
+
+	// Step 2: Parse reordered version
+	reorderedFile := filepath.Join(tmpDir, "reordered.env")
+	err = os.WriteFile(reorderedFile, []byte(reorderedEnv), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create reordered .env file: %v", err)
+	}
+
+	reorderedItem, err := ParseEnvFileToItem(reorderedFile, "test-item")
+	if err != nil {
+		t.Fatalf("Failed to parse reordered .env: %v", err)
+	}
+
+	// Step 3: Verify both have same fields but different section order
+	originalOutput := filepath.Join(tmpDir, "original_output.env")
+	err = WriteItemToEnvFile(originalOutput, originalItem)
+	if err != nil {
+		t.Fatalf("Failed to write original output: %v", err)
+	}
+
+	reorderedOutput := filepath.Join(tmpDir, "reordered_output.env")
+	err = WriteItemToEnvFile(reorderedOutput, reorderedItem)
+	if err != nil {
+		t.Fatalf("Failed to write reordered output: %v", err)
+	}
+
+	// Read both outputs
+	originalContent, err := os.ReadFile(originalOutput)
+	if err != nil {
+		t.Fatalf("Failed to read original output: %v", err)
+	}
+
+	reorderedContent, err := os.ReadFile(reorderedOutput)
+	if err != nil {
+		t.Fatalf("Failed to read reordered output: %v", err)
+	}
+
+	// Extract section order from both
+	originalSections := extractSectionOrder(string(originalContent))
+	reorderedSections := extractSectionOrder(string(reorderedContent))
+
+	// Verify they have different orders
+	expectedOriginal := []string{"Email Settings", "Redis Configuration"}
+	expectedReordered := []string{"Redis Configuration", "Email Settings"}
+
+	if !slicesEqual(originalSections, expectedOriginal) {
+		t.Errorf("Original section order incorrect: got %v, want %v", originalSections, expectedOriginal)
+	}
+
+	if !slicesEqual(reorderedSections, expectedReordered) {
+		t.Errorf("Reordered section order incorrect: got %v, want %v", reorderedSections, expectedReordered)
+	}
+
+	// Verify section order is different between the two
+	if slicesEqual(originalSections, reorderedSections) {
+		t.Error("Section order should be different between original and reordered, but they are the same")
+	}
+}
+
+// Helper function to extract section order from .env content
+func extractSectionOrder(content string) []string {
+	var sections []string
+	lines := strings.Split(content, "\n")
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") && !strings.Contains(line, "---") {
+			sectionName := strings.TrimSpace(strings.TrimPrefix(line, "#"))
+			if sectionName != "" {
+				sections = append(sections, sectionName)
+			}
+		}
+	}
+	
+	return sections
+}
+
+// Helper function to compare string slices
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
