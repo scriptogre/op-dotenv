@@ -26,7 +26,7 @@ func NewApp() (*App, error) {
 }
 
 // Push uploads a .env file to 1Password
-func (a *App) Push(filePath, vault, item string) error {
+func (a *App) Push(filePath, vault, item string, force bool) error {
 	// Validate dependencies first
 	if err := ValidateCliInstalled(); err != nil {
 		ShowDependencyError(err)
@@ -72,7 +72,7 @@ func (a *App) Push(filePath, vault, item string) error {
 
 	// Check if item exists and confirm overwrite
 	if onepassword.ItemExists(vaultID, targetItem) {
-		if !ConfirmOverwrite("Item", targetItem, "vault '"+targetVault+"'") {
+		if !force && !ConfirmOverwrite("Item", targetItem, "vault '"+targetVault+"'") {
 			return nil
 		}
 	}
