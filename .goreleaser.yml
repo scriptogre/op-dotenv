@@ -58,6 +58,7 @@ brews:
     license: "MIT"
     dependencies:
       - name: 1password-cli
+        type: cask
     install: |
       bin.install "op-dotenv"
     test: |
