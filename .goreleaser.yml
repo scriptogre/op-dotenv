@@ -62,4 +62,4 @@ release:
     owner: scriptogre
     name: op-dotenv
   draft: false
-  prerelease: auto
+  prerelease: auto# Test
