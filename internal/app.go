@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/scriptogre/op-dotenv/internal/onepassword"
@@ -91,11 +92,20 @@ func (a *App) Push(filePath, vault, item string, force bool) error {
 
 	// Create or update the item
 	if onepassword.ItemExists(vaultID, targetItem) {
+		// Delete existing item and recreate to ensure proper field types and section order
 		existingItem, err := onepassword.GetItemByName(vaultID, targetItem)
 		if err != nil {
 			return err
 		}
-		err = onepassword.UpdateItemFields(existingItem.ID, notes, fields)
+		
+		// Delete the existing item
+		deleteCmd := exec.Command("op", "item", "delete", existingItem.ID, "--vault", vaultID)
+		if _, err := deleteCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to delete existing item: %w", err)
+		}
+		
+		// Create new item with updated structure
+		err = onepassword.CreateItemFromFields(vaultID, targetItem, notes, fields)
 	} else {
 		err = onepassword.CreateItemFromFields(vaultID, targetItem, notes, fields)
 	}

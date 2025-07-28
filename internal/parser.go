@@ -70,7 +70,7 @@ func ParseEnvFileToItem(filePath, itemTitle string) (*onepassword.OnePasswordIte
 		// If we're in header, collect notes
 		if inHeader {
 			if strings.HasPrefix(line, "#") {
-				headerLines = append(headerLines, strings.TrimPrefix(strings.TrimSpace(line), "#"))
+				headerLines = append(headerLines, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "#")))
 			}
 			continue
 		}
@@ -136,6 +136,8 @@ func WriteItemToEnvFile(filePath string, item *onepassword.OnePasswordItem) erro
 	// Extract notes and organize fields by section
 	var notes string
 	sections := make(map[string][]onepassword.OnePasswordField)
+	var sectionOrder []string
+	seenSections := make(map[string]bool)
 
 	for _, field := range item.Fields {
 		if field.ID == "notesPlain" {
@@ -154,6 +156,12 @@ func WriteItemToEnvFile(filePath string, item *onepassword.OnePasswordItem) erro
 			}
 		}
 
+		// Track section order
+		if !seenSections[sectionName] {
+			sectionOrder = append(sectionOrder, sectionName)
+			seenSections[sectionName] = true
+		}
+
 		sections[sectionName] = append(sections[sectionName], field)
 	}
 
@@ -168,26 +176,37 @@ func WriteItemToEnvFile(filePath string, item *onepassword.OnePasswordItem) erro
 		file.WriteString("# " + strings.Repeat("-", 44) + "\n\n")
 	}
 
+	// Prepare named sections list
+	namedSections := make([]string, 0)
+	for _, sectionName := range sectionOrder {
+		if sectionName != "" {
+			namedSections = append(namedSections, sectionName)
+		}
+	}
+
 	// Write ungrouped variables first (empty section key)
 	if fields, exists := sections[""]; exists && len(fields) > 0 {
 		for _, field := range fields {
 			file.WriteString(fmt.Sprintf("%s='%s'\n", field.Label, field.Value))
 		}
-		file.WriteString("\n")
+		// Only add newline if there are named sections to follow
+		if len(namedSections) > 0 {
+			file.WriteString("\n")
+		}
 	}
 
-	// Write sections
-	for sectionName, fields := range sections {
-		if sectionName == "" {
-			continue // Already handled above
-		}
-
+	// Write sections in original order
+	for i, sectionName := range namedSections {
+		fields := sections[sectionName]
 		if len(fields) > 0 {
 			file.WriteString(fmt.Sprintf("# %s\n", sectionName))
 			for _, field := range fields {
 				file.WriteString(fmt.Sprintf("%s='%s'\n", field.Label, field.Value))
 			}
-			file.WriteString("\n")
+			// Only add newline if not the last section
+			if i < len(namedSections)-1 {
+				file.WriteString("\n")
+			}
 		}
 	}
 
