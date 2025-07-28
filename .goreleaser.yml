@@ -48,6 +48,7 @@ brews:
     repository:
       owner: scriptogre
       name: homebrew-op-dotenv
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     commit_author:
       name: scriptogre
       email: noreply@github.com
