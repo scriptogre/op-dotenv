@@ -55,9 +55,6 @@ brews:
     homepage: https://github.com/scriptogre/op-dotenv
     description: "Convert .env files to 1Password items and vice versa"
     license: "MIT"
-    dependencies:
-      - name: 1password-cli
-        type: optional
     caveats: "Requires 1Password CLI: brew install --cask 1password-cli"
 
 release:
