@@ -7,6 +7,8 @@
 
 Convert .env files to 1Password items and vice versa.
 
+![Showcase](./showcase.png)
+
 ## What it does
 
 - **Push**: Convert `.env` file (in current directory) into an 1Password item
