@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-	"strings"
 )
 
 // GetItemByName retrieves a 1Password item by name from a vault
@@ -32,52 +31,34 @@ func ItemExists(vault, itemName string) bool {
 
 // CreateItemFromFields creates a new 1Password item with the given fields
 func CreateItemFromFields(vault, itemName, notes string, fields []OnePasswordField) error {
-	// Create item template with proper field types
-	itemTemplate := map[string]interface{}{
-		"title":    itemName,
-		"category": "SECURE_NOTE",
-		"fields":   []map[string]interface{}{},
-	}
+	args := []string{"item", "create", "--category", "Secure Note", "--title", itemName, "--vault", vault}
 
 	// Add notes if present
 	if notes != "" {
-		notesField := map[string]interface{}{
-			"id":    "notesPlain",
-			"type":  "STRING",
-			"value": notes,
-		}
-		itemTemplate["fields"] = append(itemTemplate["fields"].([]map[string]interface{}), notesField)
+		args = append(args, fmt.Sprintf("notesPlain=%s", notes))
 	}
 
-	// Add custom fields with proper types
+	// Add fields using assignment syntax (which works properly for sections and field types)
 	for _, field := range fields {
 		if field.ID == "notesPlain" {
 			continue // Already handled above
 		}
 
-		fieldMap := map[string]interface{}{
-			"label": field.Label,
-			"type":  field.Type,
-			"value": field.Value,
-		}
-
-		// Add section if present
+		var fieldAssignment string
 		if field.Section != nil {
-			fieldMap["section"] = field.Section
+			if sectionLabel, ok := field.Section["label"].(string); ok {
+				// Field with section: section.field[type]=value  
+				fieldAssignment = fmt.Sprintf("%s.%s[%s]=%s", sectionLabel, field.Label, field.Type, field.Value)
+			}
+		} else {
+			// Field without section: field[type]=value
+			fieldAssignment = fmt.Sprintf("%s[%s]=%s", field.Label, field.Type, field.Value)
 		}
-
-		itemTemplate["fields"] = append(itemTemplate["fields"].([]map[string]interface{}), fieldMap)
+		
+		args = append(args, fieldAssignment)
 	}
 
-	// Convert to JSON
-	jsonBytes, err := json.Marshal(itemTemplate)
-	if err != nil {
-		return fmt.Errorf("failed to create JSON template: %w", err)
-	}
-
-	// Create item using JSON template
-	cmd := exec.Command("op", "item", "create", "--vault", vault, "-")
-	cmd.Stdin = strings.NewReader(string(jsonBytes))
+	cmd := exec.Command("op", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to create item: %s", string(output))
