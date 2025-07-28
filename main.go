@@ -113,9 +113,18 @@ func main() {
 					}
 
 					workingDir, _ := os.Getwd()
-					fmt.Printf("Current configuration for %s:\n", workingDir)
-					fmt.Printf("  Vault: %s\n", config.GetVault(workingDir, "Environments"))
-					fmt.Printf("  Item:  %s\n", config.GetItem(workingDir, filepath.Base(workingDir)))
+					
+					// Check if this project has any stored configuration
+					if _, exists := config.Projects[workingDir]; exists {
+						fmt.Printf("Current configuration for %s:\n", workingDir)
+						fmt.Printf("  Vault: %s\n", config.GetVault(workingDir, "Environments"))
+						fmt.Printf("  Item:  %s\n", config.GetItem(workingDir, filepath.Base(workingDir)))
+					} else {
+						fmt.Printf("No configuration found for %s.\n", workingDir)
+						fmt.Printf("Default values will be used:\n")
+						fmt.Printf("  Vault: %s\n", "Environments")
+						fmt.Printf("  Item:  %s\n", filepath.Base(workingDir))
+					}
 
 					return nil
 				},
