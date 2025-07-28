@@ -57,8 +57,7 @@ brews:
     description: "Convert .env files to 1Password items and vice versa"
     license: "MIT"
     dependencies:
-      - name: 1password-cli
-        type: cask
+      - cask: 1password-cli
     install: |
       bin.install "op-dotenv"
     test: |
