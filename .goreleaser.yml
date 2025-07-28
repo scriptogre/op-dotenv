@@ -1,0 +1,69 @@
+version: 2
+
+project_name: op-dotenv
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - files:
+      - README.md
+      - LICENSE*
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+brews:
+  - name: op-dotenv
+    repository:
+      owner: scriptogre
+      name: homebrew-op-dotenv
+    commit_author:
+      name: scriptogre
+      email: noreply@github.com
+    homepage: https://github.com/scriptogre/op-dotenv
+    description: "Convert .env files to 1Password items and vice versa"
+    license: "MIT"
+    dependencies:
+      - name: 1password-cli
+    install: |
+      bin.install "op-dotenv"
+    test: |
+      system "#{bin}/op-dotenv --version"
+
+release:
+  github:
+    owner: scriptogre
+    name: op-dotenv
+  draft: false
+  prerelease: auto
