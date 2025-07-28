@@ -49,6 +49,7 @@ brews:
       owner: scriptogre
       name: homebrew-op-dotenv
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
     commit_author:
       name: scriptogre
       email: noreply@github.com
@@ -62,4 +63,4 @@ release:
     owner: scriptogre
     name: op-dotenv
   draft: false
-  prerelease: auto# Test
+  prerelease: auto
