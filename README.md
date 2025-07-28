@@ -79,10 +79,11 @@ And vice-versa.
 
 ### Rules
 
-1. **Item notes**: Comment surrounded by 44 dashes becomes the item note
+1. Top-level comment surrounded by 44 dashes becomes the item note
 2. Variables at the top (before any `# Section Name` comment) are saved in 1Password without a section.
 3. Variables after a `# [label]` line in `.env` are saved in a `[label]` section in 1Password.
-4. Pull creates the same format as the original `.env` file
+4. Variables containing `PASSWORD`, `PASS`, `SECRET`, `KEY`, `TOKEN`, `AUTH`, `CREDENTIAL`, `HASH`, or `SALT` are concealed in 1Password. All other variables remain visible as text fields.
+5. Pull creates the same format as the original `.env` file
 
 ## Configuration
 

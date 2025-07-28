@@ -65,8 +65,9 @@ func main() {
 
 					vault := cmd.String("vault")
 					item := cmd.String("item")
+					force := cmd.Bool("force")
 
-					return app.Push(filePath, vault, item)
+					return app.Push(filePath, vault, item, force)
 				},
 			},
 			{

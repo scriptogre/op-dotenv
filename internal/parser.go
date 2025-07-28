@@ -10,6 +10,21 @@ import (
 	"github.com/scriptogre/op-dotenv/internal/onepassword"
 )
 
+// getFieldType determines if a field should be a password based on its name
+func getFieldType(fieldName string) string {
+	// Keywords that indicate a field should be hidden as a password
+	passwordKeywords := []string{"PASSWORD", "PASS", "SECRET", "KEY", "TOKEN", "AUTH", "CREDENTIAL", "HASH", "SALT"}
+	
+	upperName := strings.ToUpper(fieldName)
+	for _, keyword := range passwordKeywords {
+		if strings.Contains(upperName, keyword) {
+			return "CONCEALED"
+		}
+	}
+	
+	return "STRING"
+}
+
 // ParseEnvFileToItem reads a .env file and converts it to a OnePasswordItem structure
 func ParseEnvFileToItem(filePath, itemTitle string) (*onepassword.OnePasswordItem, error) {
 	file, err := os.Open(filePath)
@@ -76,7 +91,7 @@ func ParseEnvFileToItem(filePath, itemTitle string) (*onepassword.OnePasswordIte
 			value := strings.Trim(matches[2], `'"`)
 
 			field := onepassword.OnePasswordField{
-				Type:  "STRING",
+				Type:  getFieldType(key),
 				Label: key,
 				Value: value,
 			}
