@@ -3,7 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/scriptogre/op-dotenv?style=for-the-badge)](https://github.com/scriptogre/op-dotenv/releases)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/scriptogre/op-dotenv?style=for-the-badge&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
-[![Homebrew](https://img.shields.io/badge/brew%20install-scriptogre%2Fop--dotenv-orange?style=for-the-badge&logo=homebrew)](https://github.com/scriptogre/homebrew-op-dotenv)
+[![Homebrew](https://img.shields.io/badge/brew%20install-scriptogre%2Fop--dotenv%2Fop--dotenv-orange?style=for-the-badge&logo=homebrew)](https://github.com/scriptogre/homebrew-op-dotenv)
 
 Convert .env files to 1Password items and vice versa.
 
@@ -19,7 +19,7 @@ Convert .env files to 1Password items and vice versa.
 ## Installation
 
 ```bash
-brew install scriptogre/op-dotenv
+brew install scriptogre/op-dotenv/op-dotenv
 ```
 
 ## Requirements
