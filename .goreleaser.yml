@@ -56,9 +56,19 @@ homebrew_casks:
     homepage: https://github.com/scriptogre/op-dotenv
     description: "Convert .env files to 1Password items and vice versa"
     license: "MIT"
-    caveats: "Requires 1Password CLI: brew install --cask 1password-cli"
+    caveats: |
+      Requires 1Password CLI: brew install --cask 1password-cli
+      
+      On first run, macOS may show a security warning. Go to:
+      System Settings > Privacy & Security > Click "Allow Anyway"
     dependencies:
       - cask: 1password-cli
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/op-dotenv"]
+          end
 
 release:
   github:
